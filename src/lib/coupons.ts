@@ -27,8 +27,33 @@ export type CouponStats = {
   redemptions: number
 }
 
-const emptyToNull = (value: unknown) =>
-  value === "" || value === undefined || value === null ? null : value
+/** Form empties → null; keeps input/output types compatible with zodResolver. */
+const optionalPositiveNumber = (message: string) =>
+  z
+    .union([
+      z.literal(""),
+      z.null(),
+      z.undefined(),
+      z.coerce.number<number>().positive(message),
+    ])
+    .transform((value): number | null =>
+      value === "" || value == null ? null : value
+    )
+
+const optionalPositiveInt = (message: string) =>
+  z
+    .union([
+      z.literal(""),
+      z.null(),
+      z.undefined(),
+      z.coerce
+        .number<number>()
+        .int("Usage limit must be a whole number")
+        .positive(message),
+    ])
+    .transform((value): number | null =>
+      value === "" || value == null ? null : value
+    )
 
 export const couponFormSchema = z
   .object({
@@ -41,22 +66,12 @@ export const couponFormSchema = z
     description: z.string().trim().max(500).optional().nullable(),
     discount_type: z.enum(["percent", "fixed"]),
     discount_value: z.coerce.number<number>().positive("Discount must be greater than 0"),
-    min_subtotal: z.preprocess(
-      (value) => (value === "" || value === null || value === undefined ? 0 : value),
-      z.coerce.number<number>().min(0, "Minimum cannot be negative")
-    ),
-    max_discount: z.preprocess(
-      emptyToNull,
-      z.coerce.number<number>().positive("Max discount must be greater than 0").nullable()
-    ),
-    usage_limit: z.preprocess(
-      emptyToNull,
-      z.coerce
-        .number<number>()
-        .int("Usage limit must be a whole number")
-        .positive("Usage limit must be greater than 0")
-        .nullable()
-    ),
+    min_subtotal: z.coerce
+      .number<number>()
+      .min(0, "Minimum cannot be negative")
+      .catch(0),
+    max_discount: optionalPositiveNumber("Max discount must be greater than 0"),
+    usage_limit: optionalPositiveInt("Usage limit must be greater than 0"),
     starts_at: z.string().optional().nullable(),
     ends_at: z.string().optional().nullable(),
     is_active: z.boolean(),
@@ -78,7 +93,8 @@ export const couponFormSchema = z
     }
   })
 
-export type CouponFormValues = z.infer<typeof couponFormSchema>
+export type CouponFormValues = z.output<typeof couponFormSchema>
+export type CouponFormInput = z.input<typeof couponFormSchema>
 
 export function normalizeCouponCode(code: string) {
   return code.trim().toUpperCase()

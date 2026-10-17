@@ -26,6 +26,7 @@ import {
   isoToDatetimeLocal,
   normalizeCouponCode,
   type Coupon,
+  type CouponFormInput,
   type CouponFormValues,
 } from "@/lib/coupons"
 import { formatNGN } from "@/lib/money"
@@ -136,7 +137,7 @@ export function AdminCouponsManager({ initialCoupons }: AdminCouponsManagerProps
     setPage(1)
   }, [query, status])
 
-  const form = useForm<CouponFormValues>({
+  const form = useForm<CouponFormInput, unknown, CouponFormValues>({
     resolver: zodResolver(couponFormSchema),
     defaultValues: emptyForm(),
   })
