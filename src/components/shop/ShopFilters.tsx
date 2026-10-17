@@ -15,7 +15,7 @@ import {
   shopSizes,
   shopStatusFilters,
 } from "@/lib/shop-filters"
-import type { TaxonomyOption } from "@/lib/catalog-taxonomy"
+import type { TaxonomyOption } from "@/lib/catalog-taxonomy-shared"
 import { formatNGN } from "@/lib/money"
 import { cn } from "@/lib/utils"
 

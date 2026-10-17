@@ -25,7 +25,7 @@ import { PRICE_MAX, PRICE_MIN, shopSortOptions } from "@/lib/shop-filters"
 import {
   resolveCategoryFilterSlugs,
   type TaxonomyOption,
-} from "@/lib/catalog-taxonomy"
+} from "@/lib/catalog-taxonomy-shared"
 
 function parseList(value: string | null) {
   if (!value) return [] as string[]

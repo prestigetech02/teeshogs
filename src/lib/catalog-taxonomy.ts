@@ -4,6 +4,10 @@ import {
   type AttributeOrderBy,
   type AttributeTerm,
 } from "@/lib/attributes"
+import {
+  type ColorOption,
+  type TaxonomyOption,
+} from "@/lib/catalog-taxonomy-shared"
 import { buildColorHexMap, type ColorHexMap } from "@/lib/colors"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import {
@@ -12,20 +16,8 @@ import {
   shopSizes,
 } from "@/lib/shop-filters"
 
-export type TaxonomyOption = {
-  label: string
-  value: string
-  /** Present when this option is a subcategory. */
-  parentValue?: string | null
-  children?: TaxonomyOption[]
-  /** Indent hint for flat lists (0 = root, 1 = child). */
-  depth?: number
-}
-
-export type ColorOption = {
-  name: string
-  hex: string | null
-}
+export type { ColorOption, TaxonomyOption } from "@/lib/catalog-taxonomy-shared"
+export { resolveCategoryFilterSlugs } from "@/lib/catalog-taxonomy-shared"
 
 type CategoryRow = {
   id: string
@@ -153,14 +145,6 @@ function buildCategoryTaxonomy(rows: CategoryRow[]) {
   }
 
   return { categories, categoryTree, categoryFilterMap }
-}
-
-export function resolveCategoryFilterSlugs(
-  categoryFilterMap: Record<string, string[]> | undefined,
-  category: string
-) {
-  if (!category) return []
-  return categoryFilterMap?.[category] ?? [category]
 }
 
 export async function getShopTaxonomy(supabaseClient?: SupabaseClient) {
