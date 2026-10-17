@@ -1,0 +1,13 @@
+.aboutPage {
+  --about-ink: #14110f;
+  --about-sand: #e7e3dc;
+  --about-cream: #ddd7cd;
+  --about-line: rgba(20, 17, 15, 0.14);
+}
+
+:global(.dark) .aboutPage {
+  --about-ink: #efece7;
+  --about-sand: #12100e;
+  --about-cream: #1c1916;
+  --about-line: rgba(239, 236, 231, 0.14);
+}
