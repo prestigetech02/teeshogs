@@ -19,6 +19,8 @@ export async function GET(request: Request) {
         status: order.status,
         total: order.total,
         shippingFee: order.shipping_fee,
+        shippingMethod: order.shipping_method,
+        shippingZoneName: order.shipping_zone_name,
         fezOrderNo: order.fez_order_no,
         email: order.email,
       },

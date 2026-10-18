@@ -16,6 +16,8 @@ type VerifyResult = {
     status: string
     total: number
     shippingFee: number
+    shippingMethod?: string | null
+    shippingZoneName?: string | null
     fezOrderNo: string | null
     email: string
   }
@@ -109,6 +111,12 @@ export function CheckoutSuccessContent() {
           <span className="text-muted-foreground">Total paid</span>
           <span className="font-medium">{formatNGN(Number(order.total))}</span>
         </div>
+        {order.shippingZoneName && (
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground">Delivery zone</span>
+            <span className="font-medium">{order.shippingZoneName}</span>
+          </div>
+        )}
         {order.fezOrderNo && (
           <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Fez tracking</span>

@@ -33,6 +33,8 @@ const bodySchema = z.object({
   city: z.string().trim().min(2).max(120),
   state: z.string().trim().min(2).max(80),
   postalCode: z.string().trim().max(20).optional().nullable(),
+  shippingMethod: z.enum(["fez", "manual"]).default("fez"),
+  shippingZoneId: z.string().uuid().optional().nullable(),
   couponCode: z.string().trim().max(40).optional().nullable(),
   items: z.array(cartItemSchema).min(1).max(50),
 })
@@ -137,8 +139,36 @@ export async function POST(request: Request) {
 
     let shippingFee = 0
     let shippingQuotedAt: string | null = null
+    let shippingMethod: "fez" | "manual" = input.shippingMethod
+    let shippingZoneId: string | null = null
+    let shippingZoneName: string | null = null
 
-    if (!qualifiesForFreeShipping(subtotal)) {
+    if (shippingMethod === "manual") {
+      if (!input.shippingZoneId) {
+        return NextResponse.json({ error: "Select a delivery zone." }, { status: 400 })
+      }
+
+      const { data: zone, error: zoneError } = await admin
+        .from("shipping_zones")
+        .select("id, name, fee, is_active")
+        .eq("id", input.shippingZoneId)
+        .maybeSingle()
+
+      if (zoneError) {
+        return NextResponse.json({ error: zoneError.message }, { status: 500 })
+      }
+      if (!zone || !zone.is_active) {
+        return NextResponse.json(
+          { error: "That delivery zone is no longer available." },
+          { status: 400 }
+        )
+      }
+
+      shippingZoneId = zone.id
+      shippingZoneName = zone.name
+      shippingFee = qualifiesForFreeShipping(subtotal) ? 0 : Number(zone.fee) || 0
+      shippingQuotedAt = new Date().toISOString()
+    } else if (!qualifiesForFreeShipping(subtotal)) {
       const quote = await getFezDeliveryCost(input.state)
       shippingFee = quote.totalCost
       shippingQuotedAt = new Date().toISOString()
@@ -196,7 +226,10 @@ export async function POST(request: Request) {
         currency: "NGN",
         status: "pending_payment",
         paystack_reference: paystackReference,
-        fez_batch_id: orderNumber,
+        fez_batch_id: shippingMethod === "fez" ? orderNumber : null,
+        shipping_method: shippingMethod,
+        shipping_zone_id: shippingZoneId,
+        shipping_zone_name: shippingZoneName,
         shipping_quoted_at: shippingQuotedAt,
       })
       .select("id, order_number, paystack_reference, total")

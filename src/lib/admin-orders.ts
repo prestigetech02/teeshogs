@@ -25,6 +25,9 @@ export type AdminOrder = {
   paystack_paid_amount?: number | null
   fez_order_no: string | null
   fez_status: string | null
+  shipping_method?: string | null
+  shipping_zone_id?: string | null
+  shipping_zone_name?: string | null
   paid_at: string | null
   created_at: string
 }

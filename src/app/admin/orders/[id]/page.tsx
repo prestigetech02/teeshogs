@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { AdminOrder, AdminOrderItem } from "@/lib/admin-orders"
 import { orderStatusLabel } from "@/lib/admin-orders"
 import { formatNGN } from "@/lib/money"
+import { shippingMethodLabel } from "@/lib/shipping-zones"
 import { AdminOrderStatusForm } from "@/components/admin/AdminOrderStatusForm"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -110,6 +111,17 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <dd>
                 {typed.paid_at ? new Date(typed.paid_at).toLocaleString("en-NG") : "—"}
               </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Shipping</dt>
+              <dd>
+                {shippingMethodLabel(typed.shipping_method)}
+                {typed.shipping_zone_name ? ` · ${typed.shipping_zone_name}` : ""}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Shipping fee</dt>
+              <dd>{formatNGN(Number(typed.shipping_fee))}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Fez order</dt>

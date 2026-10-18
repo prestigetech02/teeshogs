@@ -101,6 +101,11 @@ export async function sendOrderConfirmationEmail(order: OrderRow) {
         <tr><td style="padding:10px 0 0;font-weight:700;color:#18181b;">Total</td><td style="padding:10px 0 0;text-align:right;font-weight:700;">${escapeHtml(formatNairaEmail(order.total))}</td></tr>
       </table>
       <h2 style="margin:28px 0 8px;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:#18181b;">Delivery</h2>
+      ${
+        order.shipping_method === "manual" && order.shipping_zone_name
+          ? `<p style="margin:0 0 8px;font-size:13px;color:#71717a;">Zone: <strong style="color:#18181b;">${escapeHtml(order.shipping_zone_name)}</strong></p>`
+          : `<p style="margin:0 0 8px;font-size:13px;color:#71717a;">Method: <strong style="color:#18181b;">Fez</strong></p>`
+      }
       ${addressHtml(order)}
       ${order.fez_order_no ? `<p style="margin:12px 0 0;font-size:13px;color:#71717a;">Tracking: <strong style="color:#18181b;">${escapeHtml(order.fez_order_no)}</strong></p>` : ""}
     `,

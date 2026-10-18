@@ -58,6 +58,11 @@ function categoryToNavItem(category: NavCategory): NavItem {
 export function buildMainNav(categories: NavCategory[] = []): NavSection[] {
   return [
     {
+      label: "Home",
+      href: "/",
+      items: [],
+    },
+    {
       label: "Shop",
       href: "/shop",
       items: [...shopUtilityItems, ...categories.map(categoryToNavItem)],

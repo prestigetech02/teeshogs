@@ -1,17 +1,31 @@
 import type { Metadata } from "next"
-import { AdminComingSoon } from "@/components/admin/AdminComingSoon"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
+import type { ShippingZone } from "@/lib/shipping-zones"
+import { AdminShippingZonesManager } from "@/components/admin/AdminShippingZonesManager"
 
 export const metadata: Metadata = {
   title: "Shipping | Teeshogs Admin",
 }
 
-export default function AdminShippingPage() {
+export default async function AdminShippingPage() {
+  const supabase = await createSupabaseServerClient()
+  const { data, error } = await supabase
+    .from("shipping_zones")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true })
+
+  const zones = (data as ShippingZone[] | null) ?? []
+
   return (
-    <AdminComingSoon
-      eyebrow="Commerce"
-      title="Shipping"
-      description="Set shipping zones, rates, and delivery options."
-      detail="Shipping rules will unlock with real checkout fulfillment."
-    />
+    <div className="space-y-2">
+      {error && (
+        <p className="text-sm text-destructive">
+          Could not load shipping zones. Run the shipping_zones migration in Supabase SQL editor,
+          then refresh.
+        </p>
+      )}
+      <AdminShippingZonesManager initialZones={zones} />
+    </div>
   )
 }

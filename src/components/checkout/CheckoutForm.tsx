@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
 import {
   Select,
@@ -20,12 +21,19 @@ import { resolveProductImageSrc } from "@/lib/product-images"
 import { getCartItemUnitPrice } from "@/lib/product-variants"
 import { formatNGN, getFreeShippingThresholdNgn } from "@/lib/money"
 import { NIGERIA_STATES } from "@/lib/nigeria-states"
+import type { ShippingMethod } from "@/lib/shipping-zones"
 
 type QuoteState = {
   loading: boolean
   totalCost: number | null
   freeShipping: boolean
   error: string | null
+}
+
+type CheckoutZone = {
+  id: string
+  name: string
+  fee: number
 }
 
 function Field({
@@ -64,6 +72,9 @@ export function CheckoutForm() {
   const [state, setState] = useState("")
   const [postalCode, setPostalCode] = useState("")
   const [states, setStates] = useState<string[]>([...NIGERIA_STATES])
+  const [zones, setZones] = useState<CheckoutZone[]>([])
+  const [shippingMethod, setShippingMethod] = useState<ShippingMethod>("fez")
+  const [shippingZoneId, setShippingZoneId] = useState("")
   const [quote, setQuote] = useState<QuoteState>({
     loading: false,
     totalCost: null,
@@ -78,6 +89,12 @@ export function CheckoutForm() {
     message: string
   } | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  const selectedZone = useMemo(
+    () => zones.find((zone) => zone.id === shippingZoneId) ?? null,
+    [zones, shippingZoneId]
+  )
+  const hasManualZones = zones.length > 0
 
   useEffect(() => {
     if (user?.email) setEmail(user.email)
@@ -103,7 +120,39 @@ export function CheckoutForm() {
   }, [])
 
   useEffect(() => {
-    if (!state) {
+    let cancelled = false
+    fetch("/api/shipping/zones")
+      .then((res) => res.json())
+      .then((data: { zones?: CheckoutZone[] }) => {
+        if (cancelled || !data.zones?.length) return
+        setZones(
+          data.zones.map((zone) => ({
+            id: zone.id,
+            name: zone.name,
+            fee: Number(zone.fee),
+          }))
+        )
+      })
+      .catch(() => {
+        /* Fez-only checkout still works */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasManualZones && shippingMethod === "manual") {
+      setShippingMethod("fez")
+      setShippingZoneId("")
+    }
+  }, [hasManualZones, shippingMethod])
+
+  useEffect(() => {
+    const needsFezState = shippingMethod === "fez"
+    const needsZone = shippingMethod === "manual"
+
+    if ((needsFezState && !state) || (needsZone && !shippingZoneId)) {
       setQuote({ loading: false, totalCost: null, freeShipping: false, error: null })
       return
     }
@@ -116,7 +165,12 @@ export function CheckoutForm() {
         const res = await fetch("/api/shipping/quote", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ state, subtotal: cartTotal }),
+          body: JSON.stringify({
+            method: shippingMethod,
+            state: state || undefined,
+            zoneId: shippingZoneId || null,
+            subtotal: cartTotal,
+          }),
         })
         const data = (await res.json()) as {
           totalCost?: number
@@ -145,7 +199,7 @@ export function CheckoutForm() {
     return () => {
       cancelled = true
     }
-  }, [state, cartTotal])
+  }, [shippingMethod, state, shippingZoneId, cartTotal])
 
   const appliedCouponCode = appliedCoupon?.code ?? null
 
@@ -229,6 +283,10 @@ export function CheckoutForm() {
   }
 
   const canPay = useMemo(() => {
+    const shippingReady =
+      shippingMethod === "fez"
+        ? Boolean(state.trim())
+        : Boolean(shippingZoneId)
     return (
       Boolean(
         customerName.trim() &&
@@ -238,6 +296,7 @@ export function CheckoutForm() {
           city.trim() &&
           state.trim()
       ) &&
+      shippingReady &&
       shippingFee !== null &&
       !quote.loading &&
       !quote.error &&
@@ -251,6 +310,8 @@ export function CheckoutForm() {
     addressLine1,
     city,
     state,
+    shippingMethod,
+    shippingZoneId,
     shippingFee,
     quote.loading,
     quote.error,
@@ -274,6 +335,8 @@ export function CheckoutForm() {
           city: city.trim(),
           state,
           postalCode: postalCode.trim() || null,
+          shippingMethod,
+          shippingZoneId: shippingMethod === "manual" ? shippingZoneId : null,
           couponCode: appliedCoupon?.code ?? null,
           items: cart.map((item) => ({
             productId: item.product.id,
@@ -440,27 +503,109 @@ export function CheckoutForm() {
             </Field>
           </div>
 
-          {state && (
-            <div className="mt-5 flex items-start gap-3 rounded-none bg-muted/60 px-3.5 py-3">
-              <Truck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 text-sm">
-                {quote.loading && (
-                  <p className="text-muted-foreground">Calculating shipping to {state}…</p>
-                )}
-                {!quote.loading && quote.error && (
-                  <p className="text-destructive">{quote.error}</p>
-                )}
-                {!quote.loading && !quote.error && shippingFee !== null && (
-                  <p>
-                    <span className="font-medium text-foreground">
-                      {quote.freeShipping ? "Free delivery" : formatNGN(shippingFee)}
-                    </span>
-                    <span className="text-muted-foreground"> to {state}</span>
-                  </p>
-                )}
-              </div>
+        </section>
+
+        <section className="rounded-none border border-border bg-card p-5 sm:p-6">
+          <div className="mb-5 flex items-center gap-3">
+            <span className="flex size-9 items-center justify-center rounded-none bg-foreground text-background">
+              <Truck className="size-4" />
+            </span>
+            <div>
+              <h2 className="text-base font-semibold tracking-tight">Delivery method</h2>
+              <p className="text-xs text-muted-foreground">
+                {hasManualZones
+                  ? "Choose a local zone or Fez nationwide shipping"
+                  : "Nationwide delivery with Fez"}
+              </p>
             </div>
-          )}
+          </div>
+
+          {hasManualZones ? (
+            <RadioGroup
+              value={shippingMethod}
+              onValueChange={(value) => {
+                const next = value as ShippingMethod
+                setShippingMethod(next)
+                if (next === "fez") setShippingZoneId("")
+              }}
+              className="gap-3"
+            >
+              <label
+                htmlFor="shipping-manual"
+                className="flex cursor-pointer items-start gap-3 rounded-none border border-border px-3.5 py-3 has-[[data-state=checked]]:border-foreground"
+              >
+                <RadioGroupItem value="manual" id="shipping-manual" className="mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">Local delivery zones</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Flat rates for grouped areas (e.g. Ikeja / Ogba / Ojota)
+                  </p>
+                </div>
+              </label>
+              <label
+                htmlFor="shipping-fez"
+                className="flex cursor-pointer items-start gap-3 rounded-none border border-border px-3.5 py-3 has-[[data-state=checked]]:border-foreground"
+              >
+                <RadioGroupItem value="fez" id="shipping-fez" className="mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">Fez nationwide</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Rate based on your selected state
+                  </p>
+                </div>
+              </label>
+            </RadioGroup>
+          ) : null}
+
+          {shippingMethod === "manual" && hasManualZones ? (
+            <div className="mt-4 space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground">Delivery zone</Label>
+              <Select value={shippingZoneId} onValueChange={setShippingZoneId}>
+                <SelectTrigger className="h-11 w-full">
+                  <SelectValue placeholder="Select a location group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {zones.map((zone) => (
+                    <SelectItem key={zone.id} value={zone.id}>
+                      {zone.name} — {formatNGN(zone.fee)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          <div className="mt-5 flex items-start gap-3 rounded-none bg-muted/60 px-3.5 py-3">
+            <Truck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 text-sm">
+              {shippingMethod === "fez" && !state && (
+                <p className="text-muted-foreground">Select a state above to calculate Fez shipping.</p>
+              )}
+              {shippingMethod === "manual" && !shippingZoneId && (
+                <p className="text-muted-foreground">Select a delivery zone to see the fee.</p>
+              )}
+              {quote.loading && (
+                <p className="text-muted-foreground">Calculating shipping…</p>
+              )}
+              {!quote.loading && quote.error && (
+                <p className="text-destructive">{quote.error}</p>
+              )}
+              {!quote.loading && !quote.error && shippingFee !== null && (
+                <p>
+                  <span className="font-medium text-foreground">
+                    {quote.freeShipping ? "Free delivery" : formatNGN(shippingFee)}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {shippingMethod === "manual" && selectedZone
+                      ? ` · ${selectedZone.name}`
+                      : state
+                        ? ` · Fez to ${state}`
+                        : ""}
+                  </span>
+                </p>
+              )}
+            </div>
+          </div>
         </section>
       </div>
 
@@ -594,7 +739,9 @@ export function CheckoutForm() {
                 {quote.loading
                   ? "Calculating…"
                   : shippingFee === null
-                    ? "Enter address"
+                    ? shippingMethod === "manual"
+                      ? "Choose zone"
+                      : "Enter address"
                     : quote.freeShipping
                       ? "Free"
                       : formatNGN(shippingFee)}

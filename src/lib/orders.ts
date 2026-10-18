@@ -38,6 +38,9 @@ export type OrderRow = {
   fez_order_no: string | null
   fez_batch_id: string | null
   fez_status: string | null
+  shipping_method: "fez" | "manual" | string | null
+  shipping_zone_id: string | null
+  shipping_zone_name: string | null
   paid_at: string | null
 }
 
@@ -85,7 +88,28 @@ async function decrementStockForOrder(orderId: string) {
   }
 }
 
+function usesManualShipping(order: Pick<OrderRow, "shipping_method">) {
+  return order.shipping_method === "manual"
+}
+
+async function markManualOrderProcessing(order: OrderRow) {
+  const admin = createSupabaseAdminClient()
+  await admin
+    .from("orders")
+    .update({
+      status: "processing",
+      fez_status: "Manual",
+    })
+    .eq("id", order.id)
+    .in("status", ["paid", "pending_payment", "processing"])
+}
+
 async function createFezShipmentForOrder(order: OrderRow) {
+  if (usesManualShipping(order)) {
+    await markManualOrderProcessing(order)
+    return { orderNo: null as string | null, skipped: true as const }
+  }
+
   if (order.fez_order_no) {
     return { orderNo: order.fez_order_no, skipped: true as const }
   }
@@ -137,12 +161,18 @@ export async function fulfillPaidOrder(reference: string) {
   const typed = order as OrderRow
 
   if (typed.status === "paid" || typed.status === "processing" || typed.status === "shipped" || typed.status === "delivered") {
-    // Still try Fez if missing
-    if (!typed.fez_order_no) {
+    // Still try Fez if missing (manual zones skip Fez).
+    if (!usesManualShipping(typed) && !typed.fez_order_no) {
       try {
         await createFezShipmentForOrder(typed)
       } catch {
         // Payment already succeeded; Fez can be retried later.
+      }
+    } else if (usesManualShipping(typed) && typed.status === "paid") {
+      try {
+        await markManualOrderProcessing(typed)
+      } catch {
+        // Payment already succeeded; admin can update status later.
       }
     }
     const { data: refreshed } = await admin
