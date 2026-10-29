@@ -26,7 +26,8 @@ export default async function AdminNotificationsPage() {
           <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Inbox</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Notifications</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Live contact enquiries. New messages also appear on the header bell in real time.
+            Live contact enquiries. Paid orders and new messages also appear on the header bell and
+            sidebar badges in real time.
           </p>
         </div>
         <Button asChild variant="outline">

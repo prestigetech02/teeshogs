@@ -3,9 +3,12 @@ import Link from "next/link"
 import { ArrowRight, Award, RotateCcw, ShieldCheck, Truck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CategoryCarousel } from "@/components/home/CategoryCarousel"
+import { HeroSlider } from "@/components/home/HeroSlider"
 import { ProductCard } from "@/components/products/ProductCard"
 import { JsonLd } from "@/components/seo/JsonLd"
 import { supabase, type Product } from "@/lib/supabase"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { fetchHeroSlidesSetting, toDisplayHeroSlides } from "@/lib/site-settings"
 import {
   createPageMetadata,
   organizationJsonLd,
@@ -74,49 +77,17 @@ async function getHomeProducts() {
 }
 
 export default async function HomePage() {
-  const { featured, arrivals } = await getHomeProducts()
+  const server = await createSupabaseServerClient()
+  const [{ featured, arrivals }, hero] = await Promise.all([
+    getHomeProducts(),
+    fetchHeroSlidesSetting(server),
+  ])
+  const heroSlides = toDisplayHeroSlides(hero.slides)
 
   return (
     <div>
       <JsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
-      <section className="relative flex h-[70vh] min-h-[500px] items-center justify-center overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="/hero-bg.webp"
-            alt="Teeshogs fashion campaign"
-            className="h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-transparent" />
-        </div>
-        <div className="relative container mx-auto px-4 text-white">
-          <div className="max-w-xl">
-            <p className="mb-4 text-sm uppercase tracking-[0.3em] opacity-90">Fall / Winter 2026</p>
-            <h1 className="mb-6 text-4xl font-bold leading-tight md:text-6xl">
-              Let Your Body
-              <br />
-              Do the Talking
-            </h1>
-            <p className="mb-8 max-w-md text-lg opacity-90">
-              Discover pieces designed to celebrate every silhouette. Fashion that speaks confidence.
-            </p>
-            <div className="flex gap-3">
-              <Button size="lg" asChild>
-                <Link href="/shop">
-                  Shop Collection <ArrowRight className="size-4" />
-                </Link>
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                asChild
-              >
-                <Link href="/shop?filter=new">New Arrivals</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
+      <HeroSlider slides={heroSlides} />
 
       <section className="border-b">
         <div className="container mx-auto px-4 py-8">

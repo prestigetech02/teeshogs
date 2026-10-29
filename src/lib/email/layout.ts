@@ -1,4 +1,7 @@
-import { getSiteUrl } from "@/lib/seo"
+import { absoluteUrl, getSiteUrl } from "@/lib/seo"
+
+/** Public logo used in transactional emails (must be reachable from email clients). */
+export const EMAIL_LOGO_PATH = "/teeshogs-logo-black.png"
 
 export function emailLayout(options: {
   title: string
@@ -6,6 +9,7 @@ export function emailLayout(options: {
   bodyHtml: string
 }) {
   const site = getSiteUrl()
+  const logoUrl = absoluteUrl(EMAIL_LOGO_PATH)
   const year = new Date().getFullYear()
 
   return `<!DOCTYPE html>
@@ -22,9 +26,17 @@ export function emailLayout(options: {
       <td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e4e7;">
           <tr>
-            <td style="padding:28px 28px 12px;border-bottom:1px solid #e4e4e7;">
-              <p style="margin:0;font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#71717a;">Teeshogs</p>
-              <h1 style="margin:10px 0 0;font-size:22px;line-height:1.3;font-weight:700;">${escapeHtml(options.title)}</h1>
+            <td style="padding:28px 28px 16px;border-bottom:1px solid #e4e4e7;">
+              <a href="${site}" style="display:inline-block;text-decoration:none;">
+                <img
+                  src="${logoUrl}"
+                  alt="Teeshogs"
+                  width="140"
+                  height="auto"
+                  style="display:block;width:140px;max-width:140px;height:auto;border:0;outline:none;text-decoration:none;"
+                />
+              </a>
+              <h1 style="margin:18px 0 0;font-size:22px;line-height:1.3;font-weight:700;">${escapeHtml(options.title)}</h1>
             </td>
           </tr>
           <tr>

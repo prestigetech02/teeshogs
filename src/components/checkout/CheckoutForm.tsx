@@ -2,9 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { Lock, MapPin, ShoppingBag, Truck, UserRound } from "lucide-react"
+import { Check, Lock, MapPin, ShoppingBag, Truck, UserRound } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -75,6 +83,8 @@ export function CheckoutForm() {
   const [zones, setZones] = useState<CheckoutZone[]>([])
   const [shippingMethod, setShippingMethod] = useState<ShippingMethod>("fez")
   const [shippingZoneId, setShippingZoneId] = useState("")
+  const [zoneModalOpen, setZoneModalOpen] = useState(false)
+  const [pendingZoneId, setPendingZoneId] = useState("")
   const [quote, setQuote] = useState<QuoteState>({
     loading: false,
     totalCost: null,
@@ -526,7 +536,14 @@ export function CheckoutForm() {
               onValueChange={(value) => {
                 const next = value as ShippingMethod
                 setShippingMethod(next)
-                if (next === "fez") setShippingZoneId("")
+                if (next === "fez") {
+                  setShippingZoneId("")
+                  setPendingZoneId("")
+                  setZoneModalOpen(false)
+                  return
+                }
+                setPendingZoneId(shippingZoneId)
+                setZoneModalOpen(true)
               }}
               className="gap-3"
             >
@@ -540,7 +557,27 @@ export function CheckoutForm() {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     Flat rates for grouped areas (e.g. Ikeja / Ogba / Ojota)
                   </p>
+                  {shippingMethod === "manual" && selectedZone ? (
+                    <p className="mt-2 text-xs font-medium text-foreground">
+                      {selectedZone.name} — {formatNGN(selectedZone.fee)}
+                    </p>
+                  ) : null}
                 </div>
+                {shippingMethod === "manual" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={(event) => {
+                      event.preventDefault()
+                      setPendingZoneId(shippingZoneId)
+                      setZoneModalOpen(true)
+                    }}
+                  >
+                    {selectedZone ? "Change" : "Choose"}
+                  </Button>
+                ) : null}
               </label>
               <label
                 htmlFor="shipping-fez"
@@ -557,23 +594,70 @@ export function CheckoutForm() {
             </RadioGroup>
           ) : null}
 
-          {shippingMethod === "manual" && hasManualZones ? (
-            <div className="mt-4 space-y-2">
-              <Label className="text-xs font-medium text-muted-foreground">Delivery zone</Label>
-              <Select value={shippingZoneId} onValueChange={setShippingZoneId}>
-                <SelectTrigger className="h-11 w-full">
-                  <SelectValue placeholder="Select a location group" />
-                </SelectTrigger>
-                <SelectContent>
-                  {zones.map((zone) => (
-                    <SelectItem key={zone.id} value={zone.id}>
-                      {zone.name} — {formatNGN(zone.fee)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
+          <Dialog
+            open={zoneModalOpen}
+            onOpenChange={(open) => {
+              setZoneModalOpen(open)
+              if (!open) setPendingZoneId(shippingZoneId)
+            }}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Choose delivery zone</DialogTitle>
+                <DialogDescription>
+                  Pick the location group that covers your address.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[50vh] space-y-2 overflow-y-auto py-1">
+                {zones.map((zone) => {
+                  const selected = pendingZoneId === zone.id
+                  return (
+                    <button
+                      key={zone.id}
+                      type="button"
+                      onClick={() => setPendingZoneId(zone.id)}
+                      className={`flex w-full items-center gap-3 border px-3.5 py-3 text-left transition-colors ${
+                        selected
+                          ? "border-foreground bg-muted/50"
+                          : "border-border hover:border-foreground/40"
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium">{zone.name}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {formatNGN(zone.fee)}
+                        </span>
+                      </span>
+                      {selected ? <Check className="size-4 shrink-0" /> : null}
+                    </button>
+                  )
+                })}
+              </div>
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (!shippingZoneId) setShippingMethod("fez")
+                    setZoneModalOpen(false)
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!pendingZoneId}
+                  onClick={() => {
+                    setShippingZoneId(pendingZoneId)
+                    setShippingMethod("manual")
+                    setZoneModalOpen(false)
+                  }}
+                >
+                  Confirm zone
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <div className="mt-5 flex items-start gap-3 rounded-none bg-muted/60 px-3.5 py-3">
             <Truck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />

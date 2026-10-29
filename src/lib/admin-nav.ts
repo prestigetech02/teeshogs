@@ -60,7 +60,6 @@ export const adminNav: AdminNavItem[] = [
   {
     label: "Shipping",
     href: "/admin/shipping",
-    badge: "Soon",
   },
   {
     label: "Payments",
@@ -73,6 +72,10 @@ export const adminNav: AdminNavItem[] = [
   {
     label: "Customers",
     href: "/admin/customers",
+  },
+  {
+    label: "Settings",
+    href: "/admin/settings",
   },
 ]
 

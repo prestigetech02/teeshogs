@@ -4,7 +4,7 @@ import { CheckoutSuccessContent } from "@/components/checkout/CheckoutSuccessCon
 
 export default function CheckoutSuccessPage() {
   return (
-    <div className="container mx-auto flex max-w-lg flex-col items-center px-4 py-20">
+    <div className="container mx-auto flex max-w-xl flex-col items-center px-4 py-20">
       <Suspense
         fallback={
           <div className="flex flex-col items-center text-center">

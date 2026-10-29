@@ -12,6 +12,7 @@ import {
   Mail,
   Menu,
   Package,
+  Settings,
   ShoppingBag,
   TicketPercent,
   Truck,
@@ -25,6 +26,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { AdminAlertsProvider, useAdminAlerts } from "@/components/admin/AdminAlertsProvider"
 import { AdminHeaderSearch } from "@/components/admin/AdminHeaderSearch"
 import { AdminNotifications } from "@/components/admin/AdminNotifications"
 import { AdminUserMenu } from "@/components/admin/AdminUserMenu"
@@ -47,6 +49,7 @@ const icons = {
   Payments: CreditCard,
   Orders: ShoppingBag,
   Customers: Users,
+  Settings: Settings,
 } as const
 
 type AdminShellProps = {
@@ -70,6 +73,27 @@ function isItemActive(pathname: string, item: AdminNavItem) {
   return pathname === item.href || pathname.startsWith(`${item.href}/`)
 }
 
+function CountBadge({
+  label,
+  active,
+}: {
+  label: string
+  active?: boolean
+}) {
+  return (
+    <span
+      className={cn(
+        "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold",
+        active
+          ? "bg-primary-foreground/20 text-primary-foreground"
+          : "bg-destructive text-white"
+      )}
+    >
+      {label}
+    </span>
+  )
+}
+
 function NavLinks({
   onNavigate,
   className,
@@ -80,17 +104,25 @@ function NavLinks({
   const pathname = usePathname()
   const productsOpenByDefault = pathname.startsWith("/admin/products")
   const [productsOpen, setProductsOpen] = useState(productsOpenByDefault)
+  const { ordersCountLabel, notificationsCountLabel } = useAdminAlerts()
 
   useEffect(() => {
     if (productsOpenByDefault) setProductsOpen(true)
   }, [productsOpenByDefault])
+
+  const liveBadgeFor = (item: AdminNavItem) => {
+    if (item.href === "/admin/orders") return ordersCountLabel
+    if (item.href === "/admin/notifications") return notificationsCountLabel
+    return null
+  }
 
   return (
     <nav className={cn("flex flex-col gap-1", className)}>
       {adminNav.map((item) => {
         const Icon = icons[item.label as keyof typeof icons]
         const active = isItemActive(pathname, item)
-        const badge = item.badge ?? null
+        const staticBadge = item.badge ?? null
+        const countBadge = liveBadgeFor(item)
         const children = item.children
 
         if (children?.length) {
@@ -160,16 +192,18 @@ function NavLinks({
               {Icon ? <Icon className="size-4" /> : null}
               {item.label}
             </span>
-            {badge && (
+            {countBadge ? (
+              <CountBadge label={countBadge} active={active} />
+            ) : staticBadge ? (
               <span
                 className={cn(
                   "text-[10px] uppercase tracking-wide",
                   active ? "text-primary-foreground/80" : "text-muted-foreground"
                 )}
               >
-                {badge}
+                {staticBadge}
               </span>
-            )}
+            ) : null}
           </Link>
         )
       })}
@@ -181,51 +215,53 @@ export function AdminShell({ email, name, children }: AdminShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <div className="h-svh overflow-hidden bg-muted/30">
-      <div className="mx-auto flex h-full max-w-7xl">
-        <aside className="hidden h-full w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-background md:flex">
-          <div className="flex h-14 shrink-0 items-center px-4">
-            <Link href="/admin" className="text-sm font-semibold tracking-wide">
-              Teeshogs Admin
-            </Link>
-          </div>
-          <Separator />
-          <div className="p-4">
-            <NavLinks />
-          </div>
-        </aside>
-
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-3 md:px-6">
-            <div className="md:hidden">
-              <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Open admin menu">
-                    <Menu className="size-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-72 p-0">
-                  <SheetHeader className="border-b border-border px-4 py-3 text-left">
-                    <SheetTitle>Teeshogs Admin</SheetTitle>
-                  </SheetHeader>
-                  <div className="p-4">
-                    <NavLinks onNavigate={() => setMobileOpen(false)} />
-                  </div>
-                </SheetContent>
-              </Sheet>
+    <AdminAlertsProvider>
+      <div className="h-svh overflow-hidden bg-muted/30">
+        <div className="mx-auto flex h-full max-w-7xl">
+          <aside className="hidden h-full w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-background md:flex">
+            <div className="flex h-14 shrink-0 items-center px-4">
+              <Link href="/admin" className="text-sm font-semibold tracking-wide">
+                Teeshogs Admin
+              </Link>
             </div>
-
-            <AdminHeaderSearch />
-
-            <div className="ml-auto flex items-center gap-1">
-              <AdminNotifications />
-              <AdminUserMenu email={email} name={name} />
+            <Separator />
+            <div className="p-4">
+              <NavLinks />
             </div>
-          </header>
+          </aside>
 
-          <main className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-6">{children}</main>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-3 md:px-6">
+              <div className="md:hidden">
+                <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label="Open admin menu">
+                      <Menu className="size-5" />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-72 p-0">
+                    <SheetHeader className="border-b border-border px-4 py-3 text-left">
+                      <SheetTitle>Teeshogs Admin</SheetTitle>
+                    </SheetHeader>
+                    <div className="p-4">
+                      <NavLinks onNavigate={() => setMobileOpen(false)} />
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              </div>
+
+              <AdminHeaderSearch />
+
+              <div className="ml-auto flex items-center gap-1">
+                <AdminNotifications />
+                <AdminUserMenu email={email} name={name} />
+              </div>
+            </header>
+
+            <main className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-6">{children}</main>
+          </div>
         </div>
       </div>
-    </div>
+    </AdminAlertsProvider>
   )
 }

@@ -44,6 +44,8 @@ export type AdminOrderItem = {
   unit_price: number
   quantity: number
   line_total: number
+  /** Resolved display image (variant image, then product primary). */
+  image?: string | null
 }
 
 export const ORDER_STATUSES = [

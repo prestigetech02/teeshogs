@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
-import { createSupabaseAdminClient } from "@/lib/supabase/admin"
+import { createSupabasePublicClient } from "@/lib/supabase/public"
 import type { ShippingZone } from "@/lib/shipping-zones"
 
 export async function GET() {
   try {
-    const admin = createSupabaseAdminClient()
-    const { data, error } = await admin
+    // Active zones are readable by anon via RLS — no service role needed.
+    const supabase = createSupabasePublicClient()
+    const { data, error } = await supabase
       .from("shipping_zones")
       .select("id, name, fee, sort_order, is_active")
       .eq("is_active", true)

@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { AdminOrder, AdminOrderItem } from "@/lib/admin-orders"
 import { orderStatusLabel } from "@/lib/admin-orders"
 import { formatNGN } from "@/lib/money"
+import { resolveProductImageSrc } from "@/lib/product-images"
 import { shippingMethodLabel } from "@/lib/shipping-zones"
 import { AdminOrderStatusForm } from "@/components/admin/AdminOrderStatusForm"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +24,43 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
+async function withItemImages(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  items: AdminOrderItem[]
+) {
+  const productIds = [...new Set(items.map((item) => item.product_id).filter(Boolean))] as string[]
+  const variantIds = [...new Set(items.map((item) => item.variant_id).filter(Boolean))] as string[]
+
+  const productImageById = new Map<string, string>()
+  const variantImageById = new Map<string, string>()
+
+  if (productIds.length > 0) {
+    const { data } = await supabase.from("products").select("id, images").in("id", productIds)
+    for (const row of data ?? []) {
+      const images = (row.images as string[] | null) ?? []
+      if (images[0]) productImageById.set(row.id as string, images[0])
+    }
+  }
+
+  if (variantIds.length > 0) {
+    const { data } = await supabase.from("product_variants").select("id, image").in("id", variantIds)
+    for (const row of data ?? []) {
+      if (row.image) variantImageById.set(row.id as string, row.image as string)
+    }
+  }
+
+  return items.map((item) => {
+    const raw =
+      (item.variant_id && variantImageById.get(item.variant_id)) ||
+      (item.product_id && productImageById.get(item.product_id)) ||
+      null
+    return {
+      ...item,
+      image: raw ? resolveProductImageSrc(raw) : resolveProductImageSrc(""),
+    }
+  })
+}
+
 export default async function AdminOrderDetailPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createSupabaseServerClient()
@@ -35,7 +73,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   if (error || !order) notFound()
 
   const typed = order as AdminOrder
-  const lineItems = (items || []) as AdminOrderItem[]
+  const lineItems = await withItemImages(supabase, (items || []) as AdminOrderItem[])
 
   return (
     <div className="space-y-6">
@@ -62,7 +100,69 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      <AdminOrderStatusForm orderId={typed.id} currentStatus={typed.status} />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
+        <section className="rounded-lg border">
+          <div className="border-b px-5 py-3">
+            <h2 className="text-sm font-semibold uppercase tracking-widest">Items</h2>
+          </div>
+          {lineItems.length === 0 ? (
+            <p className="px-5 py-8 text-sm text-muted-foreground">No items on this order.</p>
+          ) : (
+            <ul className="divide-y">
+              {lineItems.map((item) => (
+                <li key={item.id} className="flex items-start gap-4 px-5 py-4 text-sm">
+                  <div className="size-16 shrink-0 overflow-hidden rounded-md border bg-muted sm:size-20">
+                    <img
+                      src={item.image || resolveProductImageSrc("")}
+                      alt={item.name}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{item.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {[item.size, item.color, item.sku].filter(Boolean).join(" · ") || "—"}
+                      {" · "}Qty {item.quantity}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-medium">{formatNGN(Number(item.line_total))}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatNGN(Number(item.unit_price))} each
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="space-y-2 border-t px-5 py-4 text-sm">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span>{formatNGN(Number(typed.subtotal))}</span>
+            </div>
+            {Number(typed.discount_amount || 0) > 0 ? (
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">
+                  Discount{typed.coupon_code ? ` (${typed.coupon_code})` : ""}
+                </span>
+                <span className="text-emerald-700 dark:text-emerald-400">
+                  −{formatNGN(Number(typed.discount_amount || 0))}
+                </span>
+              </div>
+            ) : null}
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Shipping</span>
+              <span>{formatNGN(Number(typed.shipping_fee))}</span>
+            </div>
+            <div className="flex justify-between gap-4 font-medium">
+              <span>Total</span>
+              <span>{formatNGN(Number(typed.total))}</span>
+            </div>
+          </div>
+        </section>
+
+        <AdminOrderStatusForm orderId={typed.id} currentStatus={typed.status} />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="space-y-3 rounded-lg border p-5">
@@ -131,52 +231,9 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <dt className="text-muted-foreground">Fez status</dt>
               <dd>{typed.fez_status || "—"}</dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Subtotal</dt>
-              <dd>{formatNGN(Number(typed.subtotal))}</dd>
-            </div>
-            {Number(typed.discount_amount || 0) > 0 ? (
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">
-                  Discount{typed.coupon_code ? ` (${typed.coupon_code})` : ""}
-                </dt>
-                <dd className="text-emerald-700 dark:text-emerald-400">
-                  −{formatNGN(Number(typed.discount_amount || 0))}
-                </dd>
-              </div>
-            ) : null}
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Shipping</dt>
-              <dd>{formatNGN(Number(typed.shipping_fee))}</dd>
-            </div>
           </dl>
         </section>
       </div>
-
-      <section className="rounded-lg border">
-        <div className="border-b px-5 py-3">
-          <h2 className="text-sm font-semibold uppercase tracking-widest">Items</h2>
-        </div>
-        <ul className="divide-y">
-          {lineItems.map((item) => (
-            <li key={item.id} className="flex items-start justify-between gap-4 px-5 py-4 text-sm">
-              <div className="min-w-0">
-                <p className="font-medium">{item.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {[item.size, item.color, item.sku].filter(Boolean).join(" · ") || "—"}
-                  {" · "}Qty {item.quantity}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-medium">{formatNGN(Number(item.line_total))}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatNGN(Number(item.unit_price))} each
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
     </div>
   )
 }

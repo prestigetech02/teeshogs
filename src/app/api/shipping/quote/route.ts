@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getFezDeliveryCost } from "@/lib/fez"
 import { qualifiesForFreeShipping } from "@/lib/money"
-import { createSupabaseAdminClient } from "@/lib/supabase/admin"
+import { createSupabasePublicClient } from "@/lib/supabase/public"
 
 const bodySchema = z.object({
   method: z.enum(["fez", "manual"]).default("fez"),
@@ -39,11 +39,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Select a delivery zone" }, { status: 400 })
       }
 
-      const admin = createSupabaseAdminClient()
-      const { data: zone, error } = await admin
+      const supabase = createSupabasePublicClient()
+      const { data: zone, error } = await supabase
         .from("shipping_zones")
         .select("id, name, fee, is_active")
         .eq("id", zoneId)
+        .eq("is_active", true)
         .maybeSingle()
 
       if (error) {

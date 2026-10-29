@@ -6,40 +6,62 @@ import { emailLayout, escapeHtml, formatNairaEmail } from "@/lib/email/layout"
 import { getAdminNotifyEmail, sendEmailSafe } from "@/lib/email/zeptomail"
 import { orderStatusLabel } from "@/lib/admin-orders"
 
-type OrderItemRow = {
+export type OrderEmailItem = {
   name: string
   size: string | null
   color: string | null
   quantity: number
+  unit_price: number
   line_total: number
 }
 
-async function getOrderItems(orderId: string) {
+export async function getOrderItems(orderId: string) {
   const admin = createSupabaseAdminClient()
   const { data } = await admin
     .from("order_items")
-    .select("name, size, color, quantity, line_total")
+    .select("name, size, color, quantity, unit_price, line_total")
     .eq("order_id", orderId)
-  return (data || []) as OrderItemRow[]
+    .order("created_at", { ascending: true })
+  return (data || []) as OrderEmailItem[]
 }
 
-function orderItemsHtml(items: OrderItemRow[]) {
-  if (!items.length) return "<p>No line items.</p>"
+function itemMeta(item: OrderEmailItem) {
+  return [item.size, item.color].filter(Boolean).join(" · ")
+}
+
+function orderItemsHtml(items: OrderEmailItem[]) {
+  if (!items.length) return "<p style=\"margin:0;color:#71717a;\">No line items.</p>"
   const rows = items
     .map((item) => {
-      const meta = [item.size, item.color].filter(Boolean).join(" · ")
+      const meta = itemMeta(item)
       return `<tr>
-        <td style="padding:8px 0;border-bottom:1px solid #f4f4f5;">
+        <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;">
           <strong style="color:#18181b;">${escapeHtml(item.name)}</strong>
-          <div style="font-size:12px;color:#71717a;">${escapeHtml(meta || "—")} · Qty ${item.quantity}</div>
+          <div style="font-size:12px;color:#71717a;">
+            ${escapeHtml(meta || "Standard")} · Qty ${item.quantity}
+            · ${escapeHtml(formatNairaEmail(item.unit_price))} each
+          </div>
         </td>
-        <td style="padding:8px 0;border-bottom:1px solid #f4f4f5;text-align:right;white-space:nowrap;">
+        <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;text-align:right;white-space:nowrap;vertical-align:top;">
           ${escapeHtml(formatNairaEmail(item.line_total))}
         </td>
       </tr>`
     })
     .join("")
-  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0">${rows}</table>`
+  return `
+    <h2 style="margin:24px 0 8px;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:#18181b;">Items</h2>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${rows}</table>
+  `
+}
+
+function orderItemsText(items: OrderEmailItem[]) {
+  if (!items.length) return "No line items."
+  return items
+    .map((item) => {
+      const meta = itemMeta(item)
+      return `- ${item.name}${meta ? ` (${meta})` : ""} × ${item.quantity} — ${formatNGN(item.line_total)}`
+    })
+    .join("\n")
 }
 
 function addressHtml(order: OrderRow) {
@@ -116,7 +138,16 @@ export async function sendOrderConfirmationEmail(order: OrderRow) {
       to: { address: order.email, name: order.customer_name },
       subject: `Order confirmed · ${order.order_number}`,
       html,
-      text: `Your Teeshogs order ${order.order_number} is confirmed. Total ${formatNGN(order.total)}.`,
+      text: [
+        `Your Teeshogs order ${order.order_number} is confirmed.`,
+        "",
+        "Items:",
+        orderItemsText(items),
+        "",
+        `Subtotal: ${formatNGN(order.subtotal)}`,
+        `Shipping: ${formatNGN(order.shipping_fee)}`,
+        `Total: ${formatNGN(order.total)}`,
+      ].join("\n"),
       clientReference: `order-paid-${order.id}`,
     },
     "order-confirmation"
@@ -125,6 +156,7 @@ export async function sendOrderConfirmationEmail(order: OrderRow) {
 
 export async function sendOrderStatusEmail(order: OrderRow) {
   const status = orderStatusLabel(order.status)
+  const items = await getOrderItems(order.id)
   const html = emailLayout({
     title: `Order update: ${status}`,
     preview: `${order.order_number} is now ${status}.`,
@@ -134,8 +166,14 @@ export async function sendOrderStatusEmail(order: OrderRow) {
       <p style="margin:0 0 16px;padding:12px 14px;background:#f4f4f5;border:1px solid #e4e4e7;">
         Status: <strong style="text-transform:capitalize;">${escapeHtml(status)}</strong>
       </p>
-      ${order.fez_order_no ? `<p style="margin:0 0 16px;">Fez tracking: <strong>${escapeHtml(order.fez_order_no)}</strong></p>` : ""}
-      <p style="margin:0;color:#71717a;font-size:13px;">Questions? Reply to this email or contact us at hello@teeshogs.com.</p>
+      ${orderItemsHtml(items)}
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:16px;">
+        <tr><td style="padding:4px 0;color:#71717a;">Subtotal</td><td style="padding:4px 0;text-align:right;">${escapeHtml(formatNairaEmail(order.subtotal))}</td></tr>
+        <tr><td style="padding:4px 0;color:#71717a;">Shipping</td><td style="padding:4px 0;text-align:right;">${escapeHtml(formatNairaEmail(order.shipping_fee))}</td></tr>
+        <tr><td style="padding:10px 0 0;font-weight:700;color:#18181b;">Total</td><td style="padding:10px 0 0;text-align:right;font-weight:700;">${escapeHtml(formatNairaEmail(order.total))}</td></tr>
+      </table>
+      ${order.fez_order_no ? `<p style="margin:16px 0 0;">Fez tracking: <strong>${escapeHtml(order.fez_order_no)}</strong></p>` : ""}
+      <p style="margin:16px 0 0;color:#71717a;font-size:13px;">Questions? Reply to this email or contact us at hello@teeshogs.com.</p>
     `,
   })
 
@@ -144,7 +182,14 @@ export async function sendOrderStatusEmail(order: OrderRow) {
       to: { address: order.email, name: order.customer_name },
       subject: `Order ${order.order_number} · ${status}`,
       html,
-      text: `Your order ${order.order_number} is now ${status}.`,
+      text: [
+        `Your order ${order.order_number} is now ${status}.`,
+        "",
+        "Items:",
+        orderItemsText(items),
+        "",
+        `Total: ${formatNGN(order.total)}`,
+      ].join("\n"),
       clientReference: `order-status-${order.id}-${order.status}`,
     },
     "order-status"
@@ -164,6 +209,16 @@ export async function sendAdminNewOrderEmail(order: OrderRow) {
       <p style="margin:0 0 8px;"><strong>${escapeHtml(order.order_number)}</strong> · ${escapeHtml(formatNairaEmail(order.total))}</p>
       <p style="margin:0 0 16px;">${escapeHtml(order.customer_name)} · ${escapeHtml(order.email)} · ${escapeHtml(order.phone)}</p>
       ${orderItemsHtml(items)}
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:16px;">
+        <tr><td style="padding:4px 0;color:#71717a;">Subtotal</td><td style="padding:4px 0;text-align:right;">${escapeHtml(formatNairaEmail(order.subtotal))}</td></tr>
+        <tr><td style="padding:4px 0;color:#71717a;">Shipping</td><td style="padding:4px 0;text-align:right;">${escapeHtml(formatNairaEmail(order.shipping_fee))}</td></tr>
+        <tr><td style="padding:10px 0 0;font-weight:700;color:#18181b;">Total</td><td style="padding:10px 0 0;text-align:right;font-weight:700;">${escapeHtml(formatNairaEmail(order.total))}</td></tr>
+      </table>
+      ${
+        order.shipping_method === "manual" && order.shipping_zone_name
+          ? `<p style="margin:16px 0 0;font-size:13px;color:#71717a;">Zone: <strong style="color:#18181b;">${escapeHtml(order.shipping_zone_name)}</strong></p>`
+          : ""
+      }
       <p style="margin:24px 0 0;">
         <a href="${absoluteUrl(`/admin/orders/${order.id}`)}" style="display:inline-block;background:#18181b;color:#ffffff;text-decoration:none;padding:12px 20px;font-weight:600;">
           View in admin
@@ -177,6 +232,16 @@ export async function sendAdminNewOrderEmail(order: OrderRow) {
       to: { address: adminEmail, name: "Teeshogs Admin" },
       subject: `New order ${order.order_number}`,
       html,
+      text: [
+        `New paid order ${order.order_number}`,
+        `${order.customer_name} · ${order.email} · ${order.phone}`,
+        "",
+        "Items:",
+        orderItemsText(items),
+        "",
+        `Total: ${formatNGN(order.total)}`,
+        absoluteUrl(`/admin/orders/${order.id}`),
+      ].join("\n"),
       clientReference: `admin-order-${order.id}`,
     },
     "admin-new-order"

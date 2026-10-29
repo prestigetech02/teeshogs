@@ -5,8 +5,18 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { CheckCircle2, Loader2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 import { useStore } from "@/context/StoreContext"
 import { formatNGN } from "@/lib/money"
+
+type VerifyOrderItem = {
+  name: string
+  size: string | null
+  color: string | null
+  quantity: number
+  unitPrice: number
+  lineTotal: number
+}
 
 type VerifyResult = {
   ok?: boolean
@@ -14,12 +24,16 @@ type VerifyResult = {
   order?: {
     orderNumber: string
     status: string
+    subtotal?: number
+    discountAmount?: number
+    couponCode?: string | null
     total: number
     shippingFee: number
     shippingMethod?: string | null
     shippingZoneName?: string | null
     fezOrderNo: string | null
     email: string
+    items?: VerifyOrderItem[]
   }
 }
 
@@ -93,37 +107,97 @@ export function CheckoutSuccessContent() {
   }
 
   const order = result.order
+  const items = order.items ?? []
 
   return (
-    <div className="flex flex-col items-center text-center">
+    <div className="flex w-full flex-col items-center text-center">
       <CheckCircle2 className="size-10 text-emerald-600" />
       <h1 className="mt-4 text-2xl font-semibold">Thank you for your order</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         Order <span className="font-medium text-foreground">{order.orderNumber}</span> is confirmed.
         A receipt will be associated with {order.email}.
       </p>
-      <div className="mt-6 w-full space-y-2 rounded-none border p-4 text-left text-sm">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Status</span>
-          <span className="capitalize">{order.status.replace("_", " ")}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Total paid</span>
-          <span className="font-medium">{formatNGN(Number(order.total))}</span>
-        </div>
-        {order.shippingZoneName && (
-          <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">Delivery zone</span>
-            <span className="font-medium">{order.shippingZoneName}</span>
+
+      <div className="mt-6 w-full space-y-4 rounded-none border p-4 text-left text-sm">
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Status</span>
+            <span className="capitalize">{order.status.replace("_", " ")}</span>
           </div>
-        )}
-        {order.fezOrderNo && (
-          <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">Fez tracking</span>
-            <span className="font-medium">{order.fezOrderNo}</span>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total paid</span>
+            <span className="font-medium">{formatNGN(Number(order.total))}</span>
           </div>
-        )}
+          {order.shippingZoneName && (
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Delivery zone</span>
+              <span className="font-medium">{order.shippingZoneName}</span>
+            </div>
+          )}
+          {order.fezOrderNo && (
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Fez tracking</span>
+              <span className="font-medium">{order.fezOrderNo}</span>
+            </div>
+          )}
+        </div>
+
+        {items.length > 0 ? (
+          <>
+            <Separator />
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Order items
+              </p>
+              <ul className="space-y-3">
+                {items.map((item, index) => {
+                  const meta = [item.size, item.color].filter(Boolean).join(" · ")
+                  return (
+                    <li
+                      key={`${item.name}-${item.size}-${item.color}-${index}`}
+                      className="flex items-start justify-between gap-4"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium">{item.name}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {meta || "Standard"} · Qty {item.quantity}
+                        </p>
+                      </div>
+                      <p className="shrink-0 font-medium">{formatNGN(item.lineTotal)}</p>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              {typeof order.subtotal === "number" ? (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>{formatNGN(Number(order.subtotal))}</span>
+                </div>
+              ) : null}
+              {Number(order.discountAmount || 0) > 0 ? (
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">
+                    Discount{order.couponCode ? ` (${order.couponCode})` : ""}
+                  </span>
+                  <span>−{formatNGN(Number(order.discountAmount))}</span>
+                </div>
+              ) : null}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Shipping</span>
+                <span>{formatNGN(Number(order.shippingFee))}</span>
+              </div>
+              <div className="flex justify-between font-medium">
+                <span>Total</span>
+                <span>{formatNGN(Number(order.total))}</span>
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
+
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button asChild>
           <Link href="/shop">Continue shopping</Link>
