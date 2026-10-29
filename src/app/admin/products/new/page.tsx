@@ -10,7 +10,8 @@ export const metadata: Metadata = {
 }
 
 export default async function AdminNewProductPage() {
-  const { categories, brands, sizes, colors, colorHexByName } = await getAdminCatalogOptions()
+  const { categories, brands, sizes, colors, colorHexByName, colorAttributeId } =
+    await getAdminCatalogOptions()
 
   return (
     <div className="space-y-6">
@@ -38,6 +39,7 @@ export default async function AdminNewProductPage() {
         sizes={sizes}
         colors={colors}
         colorHexByName={colorHexByName}
+        colorAttributeId={colorAttributeId}
       />
     </div>
   )

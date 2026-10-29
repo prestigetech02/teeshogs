@@ -90,9 +90,12 @@ export function QuickView() {
             {/* Colors */}
             {product.colors.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-2">
-                  Color: <span className="normal-case tracking-normal font-normal">{selectedColor || 'Select'}</span>
-                </p>
+                <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-widest">Color</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {selectedColor || "Select a color"}
+                  </p>
+                </div>
                 <ColorSwatchGroup
                   colors={product.colors}
                   selected={selectedColor}

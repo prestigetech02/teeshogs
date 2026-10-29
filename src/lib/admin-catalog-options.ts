@@ -11,15 +11,17 @@ export type CatalogOption = TaxonomyOption
 export async function getAdminCatalogOptions() {
   const supabase = await createSupabaseServerClient()
 
-  const [{ categories, sizes, colors, colorTerms, colorHexByName }, { data: brandRows }] =
-    await Promise.all([
-      getShopTaxonomy(supabase),
-      supabase
-        .from("brands")
-        .select("id, name")
-        .eq("is_active", true)
-        .order("name", { ascending: true }),
-    ])
+  const [
+    { categories, sizes, colors, colorTerms, colorHexByName, colorAttributeId },
+    { data: brandRows },
+  ] = await Promise.all([
+    getShopTaxonomy(supabase),
+    supabase
+      .from("brands")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name", { ascending: true }),
+  ])
 
   const brands: CatalogOption[] = (brandRows ?? []).map((row) => ({
     label: row.name as string,
@@ -33,5 +35,6 @@ export async function getAdminCatalogOptions() {
     colors,
     colorTerms: colorTerms as ColorOption[],
     colorHexByName: colorHexByName as ColorHexMap,
+    colorAttributeId: colorAttributeId as string | null,
   }
 }

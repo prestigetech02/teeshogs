@@ -47,25 +47,36 @@ async function getAttributeTermNames(
   ).map((term) => term.name)
 }
 
-async function getColorTerms(supabase: SupabaseClient): Promise<ColorOption[]> {
+async function getColorAttribute(supabase: SupabaseClient) {
   const { data } = await supabase
     .from("attributes")
-    .select("order_by, attribute_terms(id, attribute_id, name, slug, sort_order, hex, created_at)")
+    .select(
+      "id, order_by, attribute_terms(id, attribute_id, name, slug, sort_order, hex, created_at)"
+    )
     .eq("slug", "color")
     .maybeSingle()
 
   const terms = (data?.attribute_terms as AttributeTerm[] | null) ?? []
-  if (terms.length === 0) {
-    return shopColors.map((name) => ({ name, hex: null }))
-  }
+  const colorTerms: ColorOption[] =
+    terms.length === 0
+      ? shopColors.map((name) => ({ name, hex: null }))
+      : sortAttributeTerms(
+          terms,
+          ((data?.order_by as AttributeOrderBy) || "custom")
+        ).map((term) => ({
+          name: term.name,
+          hex: term.hex ?? null,
+        }))
 
-  return sortAttributeTerms(
-    terms,
-    ((data?.order_by as AttributeOrderBy) || "custom")
-  ).map((term) => ({
-    name: term.name,
-    hex: term.hex ?? null,
-  }))
+  return {
+    colorAttributeId: (data?.id as string | undefined) ?? null,
+    colorTerms,
+  }
+}
+
+async function getColorTerms(supabase: SupabaseClient): Promise<ColorOption[]> {
+  const { colorTerms } = await getColorAttribute(supabase)
+  return colorTerms
 }
 
 export async function getColorHexMap(
@@ -150,7 +161,7 @@ function buildCategoryTaxonomy(rows: CategoryRow[]) {
 export async function getShopTaxonomy(supabaseClient?: SupabaseClient) {
   const supabase = supabaseClient ?? (await createSupabaseServerClient())
 
-  const [{ data: categoryRows }, sizes, colorTerms] = await Promise.all([
+  const [{ data: categoryRows }, sizes, colorAttribute] = await Promise.all([
     supabase
       .from("categories")
       .select("id, name, slug, parent_id, sort_order")
@@ -158,7 +169,7 @@ export async function getShopTaxonomy(supabaseClient?: SupabaseClient) {
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
     getAttributeTermNames(supabase, "size", shopSizes),
-    getColorTerms(supabase),
+    getColorAttribute(supabase),
   ])
 
   const fallbackTree = shopCategories.map((item) => ({
@@ -185,6 +196,7 @@ export async function getShopTaxonomy(supabaseClient?: SupabaseClient) {
           ),
         }
 
+  const { colorAttributeId, colorTerms } = colorAttribute
   const colors = colorTerms.map((term) => term.name)
   const colorHexByName = buildColorHexMap(colorTerms)
 
@@ -196,5 +208,6 @@ export async function getShopTaxonomy(supabaseClient?: SupabaseClient) {
     colors,
     colorTerms,
     colorHexByName,
+    colorAttributeId,
   }
 }

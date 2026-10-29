@@ -20,7 +20,8 @@ import {
   type ProductFormValues,
 } from "@/lib/admin-products"
 import type { CatalogOption } from "@/lib/admin-catalog-options"
-import { resolveColorHex, type ColorHexMap } from "@/lib/colors"
+import { slugifyAttributeName } from "@/lib/attributes"
+import { normalizeHex, resolveColorHex, type ColorHexMap } from "@/lib/colors"
 import {
   deleteProductImageObject,
   PRODUCT_IMAGE_ACCEPT,
@@ -54,6 +55,7 @@ type ProductFormProps = {
   sizes?: string[]
   colors?: string[]
   colorHexByName?: ColorHexMap
+  colorAttributeId?: string | null
 }
 
 export function ProductForm({
@@ -64,6 +66,7 @@ export function ProductForm({
   sizes: sizeOptions,
   colors: colorOptions,
   colorHexByName,
+  colorAttributeId: initialColorAttributeId = null,
 }: ProductFormProps) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -75,6 +78,18 @@ export function ProductForm({
   const [variantDrafts, setVariantDrafts] = useState<VariantDraft[]>(() =>
     draftsFromVariants(product?.variants ?? [])
   )
+  const [colorAttributeId, setColorAttributeId] = useState<string | null>(
+    initialColorAttributeId
+  )
+  const [availableColors, setAvailableColors] = useState(() =>
+    colorOptions && colorOptions.length > 0 ? colorOptions : [...shopColors]
+  )
+  const [hexByName, setHexByName] = useState<ColorHexMap>(() => ({
+    ...(colorHexByName ?? {}),
+  }))
+  const [newColorName, setNewColorName] = useState("")
+  const [newColorHex, setNewColorHex] = useState("#808080")
+  const [creatingColor, setCreatingColor] = useState(false)
 
   const categories =
     categoryOptions && categoryOptions.length > 0
@@ -83,8 +98,17 @@ export function ProductForm({
 
   const availableSizes =
     sizeOptions && sizeOptions.length > 0 ? sizeOptions : [...shopSizes]
-  const availableColors =
-    colorOptions && colorOptions.length > 0 ? colorOptions : [...shopColors]
+
+  useEffect(() => {
+    setColorAttributeId(initialColorAttributeId)
+  }, [initialColorAttributeId])
+
+  useEffect(() => {
+    setAvailableColors(
+      colorOptions && colorOptions.length > 0 ? colorOptions : [...shopColors]
+    )
+    setHexByName({ ...(colorHexByName ?? {}) })
+  }, [colorOptions, colorHexByName])
 
   const defaults = useMemo<ProductFormValues>(
     () => ({
@@ -135,6 +159,110 @@ export function ProductForm({
       ? Array.from(new Set([...current, value]))
       : current.filter((item) => item !== value)
     form.setValue(field, next, { shouldDirty: true })
+  }
+
+  const ensureColorAttributeId = async (
+    supabase: ReturnType<typeof createSupabaseBrowserClient>
+  ) => {
+    if (colorAttributeId) return colorAttributeId
+
+    const { data: existing } = await supabase
+      .from("attributes")
+      .select("id")
+      .eq("slug", "color")
+      .maybeSingle()
+
+    if (existing?.id) {
+      setColorAttributeId(existing.id as string)
+      return existing.id as string
+    }
+
+    const { data: created, error } = await supabase
+      .from("attributes")
+      .insert({
+        name: "Color",
+        slug: "color",
+        type: "color",
+        order_by: "custom",
+        description: "Product color options",
+      })
+      .select("id")
+      .single()
+
+    if (error || !created?.id) {
+      throw new Error(error?.message || "Could not create color attribute")
+    }
+
+    setColorAttributeId(created.id as string)
+    return created.id as string
+  }
+
+  const createColorOption = async () => {
+    const name = newColorName.trim()
+    if (!name) {
+      toast.error("Enter a color name")
+      return
+    }
+
+    const hex = normalizeHex(newColorHex)
+    if (!hex) {
+      toast.error("Pick a valid color")
+      return
+    }
+
+    const duplicate = availableColors.find(
+      (color) => color.toLowerCase() === name.toLowerCase()
+    )
+    if (duplicate) {
+      toggleListValue("colors", duplicate, true)
+      toast.message(`“${duplicate}” already exists — selected for this product`)
+      setNewColorName("")
+      return
+    }
+
+    setCreatingColor(true)
+    try {
+      const supabase = createSupabaseBrowserClient()
+      const attributeId = await ensureColorAttributeId(supabase)
+      const slug = slugifyAttributeName(name) || `color-${Date.now()}`
+
+      const { data: existingTerms } = await supabase
+        .from("attribute_terms")
+        .select("sort_order")
+        .eq("attribute_id", attributeId)
+        .order("sort_order", { ascending: false })
+        .limit(1)
+
+      const nextOrder =
+        Number((existingTerms?.[0] as { sort_order?: number } | undefined)?.sort_order || 0) +
+        10
+
+      const { data, error } = await supabase
+        .from("attribute_terms")
+        .insert({
+          attribute_id: attributeId,
+          name,
+          slug,
+          sort_order: nextOrder,
+          hex,
+        })
+        .select("id, name, hex")
+        .single()
+
+      if (error) throw error
+
+      const savedName = (data?.name as string) || name
+      setAvailableColors((current) => [...current, savedName])
+      setHexByName((current) => ({ ...current, [savedName]: hex }))
+      toggleListValue("colors", savedName, true)
+      setNewColorName("")
+      setNewColorHex("#808080")
+      toast.success(`Color “${savedName}” added`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not add color")
+    } finally {
+      setCreatingColor(false)
+    }
   }
 
   const addImage = () => {
@@ -493,11 +621,17 @@ export function ProductForm({
           </div>
 
           <div className="space-y-3">
-            <Label>Colors</Label>
+            <div>
+              <Label>Colors</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Select existing colors, or create a new one with a name and color picker. Shoppers
+                see the swatch and name on the product page.
+              </p>
+            </div>
             <div className="flex flex-wrap gap-2">
               {availableColors.map((color) => {
                 const checked = colors.includes(color)
-                const hex = resolveColorHex(color, colorHexByName)
+                const hex = resolveColorHex(color, hexByName)
                 return (
                   <button
                     key={color}
@@ -522,9 +656,61 @@ export function ProductForm({
             </div>
             {availableColors.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                No color terms yet. Add them under Products → Attributes → color, with a hex value.
+                No colors yet — create one below.
               </p>
             )}
+            <div className="rounded-md border border-dashed border-border p-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Add a new color</p>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-[10rem] flex-1 space-y-1.5">
+                  <Label htmlFor="new-color-name" className="text-xs">
+                    Color name
+                  </Label>
+                  <Input
+                    id="new-color-name"
+                    value={newColorName}
+                    onChange={(event) => setNewColorName(event.target.value)}
+                    placeholder="e.g. Dusty Rose"
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault()
+                        void createColorOption()
+                      }
+                    }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="new-color-hex" className="text-xs">
+                    Swatch
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="new-color-hex"
+                      type="color"
+                      value={normalizeHex(newColorHex) || "#808080"}
+                      onChange={(event) => setNewColorHex(event.target.value)}
+                      className="h-10 w-14 cursor-pointer p-1"
+                      title="Pick color"
+                    />
+                    <Input
+                      value={newColorHex}
+                      onChange={(event) => setNewColorHex(event.target.value)}
+                      placeholder="#808080"
+                      className="w-[7.5rem] font-mono text-xs uppercase"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={creatingColor}
+                  onClick={() => void createColorOption()}
+                >
+                  <Plus className="size-4" />
+                  {creatingColor ? "Adding…" : "Add color"}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 

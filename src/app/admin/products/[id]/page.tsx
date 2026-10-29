@@ -26,11 +26,13 @@ export async function generateMetadata({
 export default async function AdminEditProductPage({ params }: EditProductPageProps) {
   const { id } = await params
   const supabase = await createSupabaseServerClient()
-  const [{ data, error }, { categories, brands, sizes, colors, colorHexByName }] =
-    await Promise.all([
-      supabase.from("products").select("*, product_variants(*)").eq("id", id).maybeSingle(),
-      getAdminCatalogOptions(),
-    ])
+  const [
+    { data, error },
+    { categories, brands, sizes, colors, colorHexByName, colorAttributeId },
+  ] = await Promise.all([
+    supabase.from("products").select("*, product_variants(*)").eq("id", id).maybeSingle(),
+    getAdminCatalogOptions(),
+  ])
 
   if (error || !data) {
     notFound()
@@ -68,6 +70,7 @@ export default async function AdminEditProductPage({ params }: EditProductPagePr
         sizes={sizes}
         colors={colors}
         colorHexByName={colorHexByName}
+        colorAttributeId={colorAttributeId}
       />
     </div>
   )
