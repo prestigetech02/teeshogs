@@ -5,18 +5,22 @@ import { shopCategories } from "@/lib/shop-filters"
 
 export const siteConfig = {
   name: "Teeshogs",
-  tagline: "Body Talks",
+  tagline: "African Prints & Fashion",
   description:
-    "Body Talks. Curated fashion that celebrates every curve, every story, every you.",
+    "Shop Teeshogs for authentic African prints — adire, kampala, and more — plus fashion accessories for men, women, and children.",
   keywords: [
     "Teeshogs",
-    "Body Talks",
-    "fashion",
-    "women's clothing",
-    "intimates",
-    "loungewear",
-    "dresses",
+    "African prints",
+    "adire",
+    "kampala",
+    "ankara",
     "African fashion",
+    "African clothing",
+    "fashion accessories",
+    "men's African wear",
+    "women's African wear",
+    "children's African wear",
+    "Nigerian fashion",
   ],
   ogImage: "/hero-bg.webp",
   locale: "en_US",
@@ -124,7 +128,15 @@ export function createProductMetadata(product: Product): Metadata {
   return {
     title: { absolute: title },
     description,
-    keywords: [product.name, product.category, siteConfig.name, "fashion"],
+    keywords: [
+      product.name,
+      product.category,
+      siteConfig.name,
+      "African prints",
+      "adire",
+      "kampala",
+      "African fashion",
+    ],
     alternates: {
       canonical: url,
     },
@@ -185,9 +197,9 @@ export function shopPageTitle(searchParams: {
 
 export function shopPageDescription(title: string) {
   if (title === "Shop") {
-    return "Shop Teeshogs — dresses, intimates, loungewear, swim, and accessories designed to celebrate every silhouette."
+    return "Shop African prints and fashion at Teeshogs — adire, kampala, ready-to-wear, and accessories for men, women, and children."
   }
-  return `Explore ${title} at Teeshogs. Curated fashion that celebrates every curve, every story, every you.`
+  return `Explore ${title} at Teeshogs — African prints, kampala, adire, and fashion accessories for the whole family.`
 }
 
 export function organizationJsonLd() {

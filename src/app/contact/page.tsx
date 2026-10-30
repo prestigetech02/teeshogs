@@ -5,7 +5,7 @@ import { createPageMetadata } from "@/lib/seo"
 export const metadata: Metadata = createPageMetadata({
   title: "Contact Us",
   description:
-    "Contact Teeshogs for styling advice, order questions, and Body Talks support at hello@teeshogs.com.",
+    "Contact Teeshogs for African print styling advice, order questions, and support at hello@teeshogs.com.",
   path: "/contact",
 })
 

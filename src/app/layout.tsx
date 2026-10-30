@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   authors: [{ name: siteConfig.name }],
   creator: siteConfig.name,
   publisher: siteConfig.name,
-  category: "fashion",
+  category: "African fashion",
   alternates: {
     canonical: absoluteUrl("/"),
   },

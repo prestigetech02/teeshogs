@@ -86,7 +86,7 @@ export function Footer({ nav }: { nav: NavSection[] }) {
           <div className="lg:col-span-1">
             <BrandLogo className="mb-4" imageClassName="h-12 sm:h-14 md:h-14" />
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              Body Talks. Where fashion speaks to your soul. Curated pieces that celebrate every curve, every story, every you.
+              Authentic African prints — adire, kampala, and more — plus fashion accessories for men, women, and children.
             </p>
             <div className="mt-6 flex gap-3">
               {socialLinks.map((item) => (
